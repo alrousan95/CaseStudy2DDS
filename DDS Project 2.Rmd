@@ -1,0 +1,403 @@
+---
+title: "DDS Project 2"
+author: "Mohammad Al-Rousan"
+date: "2023-04-12"
+output: html_document
+---
+
+## Entering the Data and Correct librarys
+```{r}
+#Import the libraries
+library(XML)
+library(dplyr)
+library(tidyr)
+library(stringi)
+library(rvest) 
+library(ggplot2)
+library(RCurl)
+library(class)
+library(caret)
+library(e1071)
+library(stringr)
+library(naniar)
+library(rmarkdown)
+library(readxl)
+library(tidyverse)
+library(aws.s3)
+
+#Import the information from AWS
+Sys.setenv("AWS_ACCESS_KEY_ID" = "AKIAUWXEX5B6B23VEXHZ",
+           "AWS_SECRET_ACCESS_KEY" = "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",
+           "AWS_DEFAULT_REGION" = "us-east-2")
+aws.s3::bucketlist()
+
+aws.s3::get_bucket("ddsproject1")
+
+#Importing and reading the data 
+employeeClassEx = s3read_using(FUN = read.csv,
+                           bucket = "ddsproject1",
+                           object = "Case2PredictionsClassifyEXAMPLE.csv")
+
+head(employeeClassEx)
+
+employeePredEx = s3read_using(FUN = read.csv,
+                               bucket = "ddsproject1",
+                               object = "Case2PredictionsRegressEXAMPLE.csv")
+
+head(employeePredEx)
+
+employeePredEx = s3read_using(FUN = read.csv,
+                              bucket = "ddsproject1",
+                              object = "Case2PredictionsRegressEXAMPLE.csv")
+
+employee = s3read_using(FUN = read.csv,
+                              bucket = "ddsproject1",
+                              object = "CaseStudy2-data.csv")
+employeeAtt = s3read_using(FUN = read.csv,
+                        bucket = "ddsproject1",
+                        object = "CaseStudy2CompSet No Attrition.csv")
+
+employeeSal = s3read_using(FUN = read.csv,
+                          bucket = "ddsproject1",
+                          object = "CaseStudy2CompSet No Salary.csv")
+
+employeeAtt <- na.omit(employeeAtt)
+is.na(employeeAtt)
+View(employee)
+```
+## Data observations
+
+```{r Obserations}
+employee %>% group_by(Attrition) %>% count(Attrition)
+#Currently, the company has a 16% attrition rate, meaning employees will leave 16%, but based on what factors? 
+
+#I would like to take a deep dive into the dynamics of the company, who they hire, what educatoinal fields they, their average salaries, a numerous factors that will be further explained in detal 
+
+employee%>% count(EducationField)
+employee %>% count(JobRole)
+#This company made hires in educational fields including Human resources, life sciences, marketing, technical degrees, and other. 
+#These fields hire for job roles including HealthCare Representative, Human Resources, Laboratory Technician, Manager, Manufacturing Director, Research Director, Research Scientist, and Sales Executive. 
+
+employee %>% summarise(mean(MonthlyIncome))
+employee %>% summarise(mean(MonthlyRate))
+#There is an aver Monthly Income of $6390.26 and a monthly rate of $14,325.62
+
+employee %>% summarise(mean(JobSatisfaction))
+#The company has an aver satisfactor level of 2.7, which is about above average meaning the majority of the employees are enjoying their jobs 
+
+#These are the basic ideals people know about a company, what kind of people do they hire, how much they pay, and are they generally happy.
+```
+
+## Important factors and their reason
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+#First, I believe observing the montary consumption is a reason as to why those are leaving the jobs
+employee %>% ggplot(aes(x = Attrition, y = MonthlyIncome, fill = Attrition)) +
+  ylab("Monthly Income") +
+  xlab("Attrition") +
+  geom_boxplot() + 
+  ggtitle("Attrition and Monthly Income")
+
+employee %>% ggplot(aes(x = Attrition, y = MonthlyRate, fill = Attrition)) +
+  ylab("Monthly Income") +
+  xlab("Attrition") +
+  geom_boxplot() + 
+  ggtitle("Attrition and Monthly Rate")
+
+employee %>% group_by(Attrition) %>% summarise(compareincomes = mean(MonthlyIncome))
+
+#Based on the graphs, it would be easy to say that attrtion is occuring due to monetary consumption, but that would be a copout, the best stategy is to locate factors in their salary as to why they are leaving. 
+
+#The first variable to observe is business travel
+employee %>% count(BusinessTravel)
+#The statistical breakdown is 10% of employees do not travel, 71% of employee's rarely travel, and 18% of employees travel frequently
+employee %>% group_by(Attrition) %>% count(BusinessTravel)
+#The statistical summary contents that 13.25% of employees who do not travel leave, 17.93% of those who rarely travel leave, but 28.45% of those who travel frequently leave, meaning those who travel frequently for their work will have a higher chance in leaving and we will create a graph showing how does it compare to monetary value. 
+employee %>% group_by(BusinessTravel) %>% summarise(CompareIncomes = mean(MonthlyIncome))
+# No Travel $14,500.78
+#Travel Rarely $14,418.82
+#Travel Frequently $13856.86	
+
+employee %>% ggplot(aes(x = BusinessTravel, y = MonthlyIncome, fill = Attrition)) +
+  xlab("Business Travel ") +
+  ylab("Monthly Income") +
+  geom_boxplot() +
+  ggtitle("Attrition and Business Travel")
+
+employee %>% ggplot(aes(x = BusinessTravel, y = MonthlyRate, fill = Attrition)) +
+  xlab("Business Travel ") +
+  ylab("Monthly Rate") +
+  geom_boxplot() +
+  ggtitle("Attrition and Business Travel")
+
+#So, now we see that Business travel plays a very distinct role in one's salary and their, so now we provide examples on jobs and department that have the most travel leaving will have a high rate of attrition
+
+employee %>% group_by(MaritalStatus) %>% count(BusinessTravel)
+#Based on this statisitical summary, martial status plays an important role, and those who are single travel the most frequently which is 23.04%
+
+employee %>% ggplot(aes(x = Attrition, fill = MaritalStatus)) + 
+  geom_bar() + 
+  facet_wrap(~BusinessTravel) +
+  ylab("Count") +
+  xlab("Attrition") +
+  ggtitle ("Attrition and Marital Status")
+
+employee %>% ggplot(aes(x = MonthlyRate, y = MaritalStatus, color = BusinessTravel)) +
+  geom_point(position = "jitter") + 
+  facet_wrap(~Attrition) +
+  ylab("Marital Status") +
+  xlab("Monthy Rate") +
+  ggtitle("Attrtion and Travel")
+
+employee %>% group_by(BusinessTravel) %>% summarise(mean(StockOptionLevel))
+employee %>% group_by(StockOptionLevel) %>% summarise(mean(MonthlyIncome))
+
+employee %>% ggplot(aes(x = StockOptionLevel, fill = Attrition)) + 
+  geom_histogram() +
+  facet_grid(~MaritalStatus) +
+  xlab("Marital Status") +
+  ylab("Count") +
+  ggtitle("Attrition vs. Martial Status and Stock Option")
+
+
+employee %>% ggplot(aes(x = StockOptionLevel, y = MonthlyIncome, color = Attrition)) + 
+  geom_point(position = "jitter") + 
+  facet_grid(~MaritalStatus) +
+  xlab("Marital Status") +
+  ylab("Monthly Income") +
+  ggtitle("Attrition vs. Martial Status and Monthly Income")
+  
+
+employee %>% ggplot(aes(x = MonthlyIncome, y = StockOptionLevel, color = Attrition)) + 
+  geom_point(position = "jitter") + 
+  facet_grid(~BusinessTravel) +
+  xlab("Monthly Income") +
+  ylab("Stock Option") +
+  ggtitle("Attrition vs. Stock Option and Monthly Income")
+  
+
+employee %>% group_by(OverTime) %>% summarise(mean(MonthlyIncome))
+employee %>% ggplot(aes(x = OverTime, fill = Attrition)) + 
+  geom_bar() + 
+  facet_wrap(~MaritalStatus) +
+  xlab("Monthly Income") +
+  ylab("Stock Option") +
+  ggtitle("Attrition vs. Stock Option and Monthly Income")
+  
+employee %>% ggplot(aes(x = OverTime, y = MonthlyIncome, color = Attrition)) +
+  geom_point(position = "jitter") + 
+  facet_wrap(~MaritalStatus) +
+  xlab("Over Time") +
+  ylab("Monthly Income") +
+  ggtitle("Attrition vs. Over Time and Monthly Income")
+
+#This is interesting to see this graph, because clearly the single group earns the least, travels the most, and have the highest attrition rate. 
+
+
+```
+```
+
+#Creating a Regression Model
+```{r}
+predictionFit = lm(MonthlyIncome~JobLevel+JobRole+TotalWorkingYears+DistanceFromHome+
+                     Age+PerformanceRating+YearsAtCompany+YearsSinceLastPromotion+OverTime
+                    + MaritalStatus + BusinessTravel + StockOptionLevel 
+                   + WorkLifeBalance + YearsAtCompany + Attrition,data=employee)
+
+summary(predictionFit)
+plot(predictionFit)
+
+MonthlyEarning = predict(predictionFit,newdata=employeeSal)
+miPred = cbind(employeeSal,MonthlyEarning)
+miPred = subset(miPred,select=c(ID,MonthlyEarning))
+
+cm(predictionFit)
+
+
+employee$lmPred = predictionFit$fitted.values
+ggplot(employee,aes(x=lmPred,y=MonthlyIncome))+
+  geom_point()+
+  geom_smooth(method='lm')+
+  ggtitle('Linear Regression for Monthly Income')+
+  xlab('Predicted Values')+
+  ylab('Monthly Income')
+```
+
+#Creating A Naive Bayes Model
+```{r}
+employeeNB = employee
+employeeNB$Attrition = as.factor(employee$Attrition)
+
+splitPerc = 0.7
+
+iterations = 100
+employeeAcc = matrix(nrow = iterations)
+employeeSen = matrix(nrow = iterations)
+employeeSpec = matrix(nrow = iterations)
+
+for(j in 1:iterations) {
+  trainIndices = sample(seq(1: length(employee$ID)), round(splitPerc * length(employee$ID)))
+  employeeTrain = employee[trainIndices, ]
+  employeeTest = employee[-trainIndices, ]
+  
+  payNB <- naiveBayes(Attrition~ MonthlyIncome +JobLevel+JobRole+TotalWorkingYears+DistanceFromHome+
+                        Age+PerformanceRating+YearsAtCompany+YearsSinceLastPromotion+OverTime
+                      + MaritalStatus + BusinessTravel + StockOptionLevel 
+                      + WorkLifeBalance + YearsAtCompany, data = employeeTrain, laplace = 1)
+  
+  table(predict(payNB, employeeTest), test$Attrition)
+  
+  CM = confusionMatrix(table(predict(payNB, employeeTest), employeeTest$Attrition))
+  employeeAcc[j] = CM$overall[1]
+  employeeSen[j] = CM$byClass[1]
+  employeeSpec[j] = CM$byClass[2]
+}
+
+employeeAcc = colMeans(employeeAcc)
+employeeAcc
+
+employeeSen = colMeans(employeeSen)
+employeeSen
+
+employeeSpec = colMeans(employeeSpec)
+employeeSpec
+
+#The model gave a 87% sensitivity and a 60% specificity. 
+```
+#Finding the Columns
+```{r}
+grep("MonthlyIncome", colnames(employeeAtt))
+grep("JobLevel", colnames(employeeAtt))
+grep("TotalWorkingYears", colnames(employeeAtt))
+grep("DistanceFromHome", colnames(employeeAtt))
+grep("Age", colnames(employeeAtt))
+grep("PerformanceRating", colnames(employeeAtt))
+grep("YearsAtCompany", colnames(employeeAtt))
+grep("OverTime", colnames(employeeAtt))
+grep("MaritalStatus", colnames(employeeAtt))
+grep("BusinessTravel", colnames(employeeAtt))
+grep("StockOptionLevel", colnames(employeeAtt))
+grep("WorkLifeBalance", colnames(employeeAtt))
+grep("YearsSinceLastPromotion", colnames(employeeAtt))
+````
+Changing the variables
+```{r}
+#change the variables 
+#change variables to factors and rename the levels to factored values
+employeeAtt$BusinessTravel <- as.factor(employeeAtt$BusinessTravel)
+employeeAtt$Department <- as.factor(employeeAtt$Department)
+employeeAtt$EducationField <- as.factor(employeeAtt$EducationField)
+employeeAtt$Gender <- as.factor(employeeAtt$Gender)
+employeeAtt$JobRole <- as.factor(employeeAtt$JobRole)
+employeeAtt$MaritalStatus <- as.factor(employeeAtt$MaritalStatus)
+employeeAtt$OverTime <- as.factor(employeeAtt$OverTime)
+
+levels(employeeAtt$Gender) <- c(1,2)
+levels(employeeAtt$Gender)
+
+#OverTime levels: 1=Yes 2=No
+levels(employeeAtt$OverTime) <- c(1,2)
+levels(employeeAtt$OverTime)
+
+#MaritalStatus levels: 1=Divorced 2=Married 3=Single
+levels(employeeAtt$MaritalStatus) <- c(1,2,3)
+levels(employeeAtt$MaritalStatus)
+
+#BusinessTravel levels:1=Non-Travel, 2=Travel Frequently 3=Travel Rarely
+levels(employeeAtt$BusinessTravel) <- c(1,2,3)
+levels(employeeAtt$BusinessTravel)
+
+#Department levels: 1=Human Resources(HR) 2=Research & Development(R&D) 3= Sales
+levels(employeeAtt$Department) <- c(1,2,3)
+levels(employeeAtt$Department)
+
+#EducationField levels: 1= Human Resources(HR) 2=Life Sciences 3=Marketing
+# 4=Medical 5=Other 6=Technical Degree
+levels(employeeAtt$EducationField) <- c(1,2,3,4,5,6)
+levels(employeeAtt$EducationField)
+
+#JobRole levels: 1=Healthcare Representative 2=Human Resources 3=Laboratory Tech
+# 4=Manager 5=Manufacturing Director 6=Research Director
+# 7=Research Scientist 8=Sales Executive 9=Sales Representative
+levels(employeeAtt$JobRole) <- c(1,2,3,4,5,6,7,8,9)
+levels(employeeAtt$JobRole)
+````
+
+
+#Building a KNN Model
+```{r}
+splitPerc = 0.7
+  trainIndices2 = sample(seq(1: length(employeeAtt$ID)), round(splitPerc * length(employeeAtt$ID)))
+  employeeTrain2 = employeeAtt[trainIndices2, ]
+  employeeTest2 = employeeAtt[-trainIndices2, ]
+  
+  employeeTrain2= na.omit(employeeTrain2)
+  employeeTest2 = na.omit(employeeTest2)
+
+classifications = knn(employeeTrain2[,c("MonthlyIncome", "JobLevel", "TotalWorkingYears", "DistanceFromHome", "Age", "PerformanceRating", "YearsAtCompany", "YearsSinceLastPromotion"
+                                      ,"OverTime", "MaritalStatus", "BusinessTravel", "StockOptionLevel", "WorkLifeBalance")], 
+                      employeeTest2[,c("MonthlyIncome", "JobLevel", "TotalWorkingYears", "DistanceFromHome", "Age", "PerformanceRating", "YearsAtCompany", "YearsSinceLastPromotion"
+                                      ,"OverTime", "MaritalStatus", "BusinessTravel", "StockOptionLevel", "WorkLifeBalance")], 
+                      employeeTrain2$Attrition, prob = TRUE, k = 100)
+table(classifications, employeeTest2$Attrition)
+cm = confusionMatrix(table(classifications, employeeTest2$Attrition))
+
+
+dim(employeeTrain2)
+dim(employeeTest2)
+
+
+table(classifications,employeeTest$Attrition)
+confusionMatrix(table(classifications,employeeTest$Attrition))
+
+#The Knn Model produce a specificty of 80% and a sensitivity of 61%. 
+
+```
+
+
+#Salary Income Model
+````{r}
+salLM <- lm(MonthlyIncome~JobLevel+TotalWorkingYears+YearsWithCurrManager,data=employee)
+summary(salLM)
+
+#The RMSE model is 1378 which is well below the 3000 threshold.
+
+Salary_Prediction = predict(salLM,employeeSal)
+Salary_Prediction
+Salary_Prediction2<- data.frame(MonthlyIncome = Salary_Prediction)
+Salary_Prediction = data.frame(ID = employeeSal[1], MonthlyIncome = Salary_Prediction2)
+
+setwd("/Users/alrousan95/Desktop/SMU Data Science Masters/DS 6306")
+
+write.csv(Salary_Prediction, "Salary_Prediction.csv", row.names=FALSE)
+```
+
+#Attrtion Prediction
+````{r}
+model = naiveBayes(Attrition~ MonthlyIncome +JobLevel+JobRole+TotalWorkingYears+DistanceFromHome+
+                        Age+PerformanceRating+YearsAtCompany+YearsSinceLastPromotion+OverTime
+                      + MaritalStatus + BusinessTravel + StockOptionLevel 
+                      + WorkLifeBalance + YearsAtCompany, data = employeeTrain, laplace = 1)
+employeeAtt$Attrition = "Attrition"
+employeeAtt <- employeeAtt %>% relocate(Attrition, .before = Age)
+attPred = predict(model,employeeAtt)
+attPred
+attPred2<- data.frame(Attrition = attPred)
+attPred = data.frame(ID = employeeAtt[1], Attrition = attPred2)
+levels(attPred$Attrition) <- c("No", "Yes")
+levels(attPred$Attrition)
+
+write.csv(attPred, "Attrition_Prediction.csv", row.names=FALSE)
+
+````
+
+```{r}
+# Conclusion
+ We were able to see that Attrition factored into Monthly Income, and the factors that come along with it are marital status, business travel, overtime and stock options.
+The biggest factors for predicting Attrition were monthly income, business travel, and stock options. These along with 10 other factors were able to predict Attrition above 60% specificty and sensitivity.
+
+Provided below are the links to the presentation and the rshiny app and are also provided at the end of the powerpoint.
+````
+

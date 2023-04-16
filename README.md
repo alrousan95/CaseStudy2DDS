@@ -7,3 +7,7 @@ Frito-Lay contacted DDSAnalytics concerning it's specialization in talent manage
 # Conclusion
  We were able to see that Attrition factored into Monthly Income, and the factors that come along with it are marital status, business travel, overtime and stock options.
 The biggest factors for predicting Attrition were monthly income, business travel, and stock options. These along with 10 other factors were able to predict Attrition above 60% specificty and sensitivity.
+
+YouTube: https://www.youtube.com/watch?v=tW8DnYQVbmA&t=2s
+
+RShiny: https://mohammad-alrousan.shinyapps.io/Attrition_Model_App_Complete_Rshiny/
